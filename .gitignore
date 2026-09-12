@@ -1,0 +1,5 @@
+/crossword-lint
+/bin/
+*.test
+*.out
+.DS_Store

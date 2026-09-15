@@ -110,6 +110,7 @@ plugins, CI steps, whatever) without having to scrape the text format.
 - `invalid-char` (error) — a character outside `#`, `.`, `A`-`Z`
 - `symmetry` (warning) — a cell and its 180-degree rotational mirror disagree on being a block
 - `min-word-length` (warning) — an across or down entry shorter than 3 squares
+- `unchecked-square` (warning) — a filled letter with no across or no down entry crossing it
 
 ## Status
 

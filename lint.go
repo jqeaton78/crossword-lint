@@ -38,6 +38,7 @@ func Lint(g *Grid) []Finding {
 	if g.Rectangular() {
 		findings = append(findings, checkSymmetry(g)...)
 		findings = append(findings, checkMinWordLength(g)...)
+		findings = append(findings, checkFullyChecked(g)...)
 	}
 
 	sort.Slice(findings, func(i, j int) bool {
@@ -116,6 +117,108 @@ func checkSymmetry(g *Grid) []Finding {
 			}
 		}
 	}
+	return findings
+}
+
+// acrossRunLengths returns, for every cell, the length of the across run
+// of white squares it belongs to (0 for a block).
+func acrossRunLengths(g *Grid) [][]int {
+	rows, cols := g.NumRows(), g.NumCols()
+	lens := make([][]int, rows)
+	for r := 0; r < rows; r++ {
+		lens[r] = make([]int, cols)
+		start := -1
+		for c := 0; c <= cols; c++ {
+			white := c < cols && !isBlock(g.At(r, c))
+			if white {
+				if start == -1 {
+					start = c
+				}
+				continue
+			}
+			if start != -1 {
+				length := c - start
+				for i := start; i < c; i++ {
+					lens[r][i] = length
+				}
+				start = -1
+			}
+		}
+	}
+	return lens
+}
+
+// downRunLengths returns, for every cell, the length of the down run of
+// white squares it belongs to (0 for a block).
+func downRunLengths(g *Grid) [][]int {
+	rows, cols := g.NumRows(), g.NumCols()
+	lens := make([][]int, rows)
+	for r := range lens {
+		lens[r] = make([]int, cols)
+	}
+	for c := 0; c < cols; c++ {
+		start := -1
+		for r := 0; r <= rows; r++ {
+			white := r < rows && !isBlock(g.At(r, c))
+			if white {
+				if start == -1 {
+					start = r
+				}
+				continue
+			}
+			if start != -1 {
+				length := r - start
+				for i := start; i < r; i++ {
+					lens[i][c] = length
+				}
+				start = -1
+			}
+		}
+	}
+	return lens
+}
+
+// checkFullyChecked flags filled letters that aren't crossed by both an
+// across and a down entry of at least two squares. An unchecked letter
+// can't be verified by a second word, so a typo there has nothing to
+// catch it.
+func checkFullyChecked(g *Grid) []Finding {
+	var findings []Finding
+	across := acrossRunLengths(g)
+	down := downRunLengths(g)
+	rows, cols := g.NumRows(), g.NumCols()
+
+	for r := 0; r < rows; r++ {
+		for c := 0; c < cols; c++ {
+			ch := g.At(r, c)
+			if ch < 'A' || ch > 'Z' {
+				continue
+			}
+			acrossChecked := across[r][c] >= 2
+			downChecked := down[r][c] >= 2
+			if acrossChecked && downChecked {
+				continue
+			}
+
+			var reason string
+			switch {
+			case !acrossChecked && !downChecked:
+				reason = "has no across or down entry checking it"
+			case !acrossChecked:
+				reason = "has no across entry checking it"
+			default:
+				reason = "has no down entry checking it"
+			}
+			findings = append(findings, Finding{
+				Line:     g.StartLine + r,
+				Column:   c + 1,
+				Severity: SeverityWarning,
+				Rule:     "unchecked-square",
+				Message:  fmt.Sprintf("letter at row %d, column %d %s", r+1, c+1, reason),
+			})
+		}
+	}
+
 	return findings
 }
 

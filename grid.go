@@ -61,8 +61,26 @@ func (g *Grid) At(row, col int) byte {
 
 func isBlock(b byte) bool { return b == '#' }
 
+// isGridRow reports whether line consists only of valid grid cell
+// characters. Used to recognize a file that omits the header and starts
+// directly with grid rows.
+func isGridRow(line string) bool {
+	if line == "" {
+		return false
+	}
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+		if ch == '#' || ch == '.' || (ch >= 'A' && ch <= 'Z') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // ParseFile reads a .grid file: zero or more "Key: Value" header lines,
-// a blank line, then the grid rows.
+// a blank line, then the grid rows. The header is optional; a file may
+// start directly with grid rows instead.
 func ParseFile(path string) (*Grid, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -84,16 +102,20 @@ func ParseFile(path string) (*Grid, error) {
 				inHeader = false
 				continue
 			}
-			idx := strings.Index(line, ":")
-			if idx < 0 {
+			if idx := strings.Index(line, ":"); idx >= 0 {
+				g.Meta = append(g.Meta, MetaLine{
+					Key:   strings.TrimSpace(line[:idx]),
+					Value: strings.TrimSpace(line[idx+1:]),
+					Line:  lineNum,
+				})
+				continue
+			}
+			if !isGridRow(line) {
 				return nil, fmt.Errorf("%s:%d: expected \"Key: Value\" header line or blank line, got %q", path, lineNum, line)
 			}
-			g.Meta = append(g.Meta, MetaLine{
-				Key:   strings.TrimSpace(line[:idx]),
-				Value: strings.TrimSpace(line[idx+1:]),
-				Line:  lineNum,
-			})
-			continue
+			// No colon and it looks like a grid row: there's no header
+			// at all, and this line is the first row of the grid.
+			inHeader = false
 		}
 
 		if strings.TrimSpace(line) == "" {
